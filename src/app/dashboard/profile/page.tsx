@@ -1,0 +1,154 @@
+'use client'
+
+import React, { useState, useEffect } from 'react';
+import DashboardLayout from '@/components/DashboardLayout';
+import { motion } from 'framer-motion';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+
+interface User {
+  id: string;
+  email: string;
+  role: string;
+  points: number;
+}
+
+interface Task {
+  id: number;
+  name: string;
+  points: number;
+  status: string;
+}
+
+const ProfilePage: React.FC<{ userRole?: string }> = ({ userRole: initialUserRole }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
+  const [inProgressTasks, setInProgressTasks] = useState<Task[]>([]);
+  const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    fetchUserData();
+    fetchTasks();
+  }, []);
+
+  const fetchUserData = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: role } = await supabase.rpc('get_user_role', { user_email: user.email });
+      const { data: userData, error } = await supabase
+        .from('user_profiles')
+        .select('points')
+        .eq('id', user.id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user data:', error);
+      } else {
+        setUser({ 
+          id: user.id, 
+          email: user.email || '', 
+          role: role || initialUserRole || 'visitor',
+          points: userData?.points || 0
+        });
+      }
+    }
+  };
+
+  const fetchTasks = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: completedData, error: completedError } = await supabase
+        .from('tasks')
+        .select('id, name, points, status')
+        .eq('applicant_id', user.id)
+        .eq('status', 'completed');
+
+      const { data: inProgressData, error: inProgressError } = await supabase
+        .from('tasks')
+        .select('id, name, points, status')
+        .eq('applicant_id', user.id)
+        .in('status', ['in_progress', 'pending_approval']);
+
+      if (completedError || inProgressError) {
+        console.error('Error fetching tasks:', completedError || inProgressError);
+      } else {
+        setCompletedTasks(completedData || []);
+        setInProgressTasks(inProgressData || []);
+      }
+    }
+  };
+
+  return (
+    <DashboardLayout>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h1 className="text-4xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
+          User Profile
+        </h1>
+        {user && (
+          <motion.div 
+            className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl shadow-lg p-6 mb-8"
+            whileHover={{ scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 300 }}
+          >
+            <p className="mb-2 text-xl"><span className="font-semibold">Email:</span> {user.email}</p>
+            <p className="mb-2 text-xl"><span className="font-semibold">Role:</span> {user.role}</p>
+            <p className="mb-2 text-2xl"><span className="font-semibold">Total Points:</span> 
+              <span className="ml-2 inline-block bg-gradient-to-r from-yellow-400 to-orange-500 text-transparent bg-clip-text">
+                {user.points}
+              </span>
+            </p>
+          </motion.div>
+        )}
+        <h2 className="text-3xl font-semibold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400">
+          Completed Tasks
+        </h2>
+        {completedTasks.length > 0 ? (
+          <ul className="space-y-4 mb-8">
+            {completedTasks.map(task => (
+              <motion.li 
+                key={task.id}
+                className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md flex justify-between items-center"
+                whileHover={{ scale: 1.03, backgroundColor: "rgba(255,255,255,0.15)" }}
+                transition={{ type: "spring", stiffness: 300 }}
+              >
+                <span className="text-lg">{task.name}</span>
+                <span className="text-lg font-semibold bg-gradient-to-r from-green-400 to-blue-500 text-transparent bg-clip-text">
+                  {task.points} points
+                </span>
+              </motion.li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xl text-gray-300 mb-8">No completed tasks yet.</p>
+        )}
+        <h2 className="text-3xl font-semibold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400">
+          In Progress Tasks
+        </h2>
+        {inProgressTasks.length > 0 ? (
+          <ul className="space-y-4">
+            {inProgressTasks.map(task => (
+              <motion.li 
+                key={task.id}
+                className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md flex justify-between items-center"
+                whileHover={{ scale: 1.03, backgroundColor: "rgba(255,255,255,0.15)" }}
+                transition={{ type: "spring", stiffness: 300 }}
+              >
+                <span className="text-lg">{task.name}</span>
+                <span className="text-lg font-semibold bg-gradient-to-r from-yellow-400 to-orange-500 text-transparent bg-clip-text">
+                  {task.status}
+                </span>
+              </motion.li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xl text-gray-300">No tasks in progress.</p>
+        )}
+      </motion.div>
+    </DashboardLayout>
+  );
+};
+
+export default ProfilePage;
