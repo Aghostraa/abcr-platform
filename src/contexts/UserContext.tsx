@@ -1,7 +1,7 @@
 'use client'
+
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-
 
 interface User {
   id: string;

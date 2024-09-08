@@ -48,7 +48,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             <NavLink href="/dashboard/tasks" icon="📋">Tasks</NavLink>
           )}
           {['Admin', 'Manager'].includes(user.role) && (
-            <NavLink href="/dashboard/teams" icon="👥">Teams</NavLink>
+            <NavLink href="/dashboard/projects" icon="🚀">Projects</NavLink>
           )}
           {user.role === 'Admin' && (
             <NavLink href="/dashboard/users" icon="👤">Users</NavLink>

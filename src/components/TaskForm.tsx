@@ -1,29 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useUser } from '@/contexts/UserContext';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 
 interface Task {
-  id?: number;
+  id?: string;
   name: string;
-  description: string;
-  project_id: number;
+  instructions: string;
   urgency: number;
-  priority: number;
   difficulty: number;
+  priority: number;
   points: number;
+  project_id: string;
+  category_id: string;
   status: string;
+  assigned_user_id?: string;
+  created_by: string;
+  created_at?: string;
+  deadline?: string;
 }
 
 interface FormData {
   name: string;
-  description: string;
+  instructions: string;
   project_id: string;
+  category_id: string;
   urgency: string;
-  priority: string;
   difficulty: string;
+  priority: string;
+  deadline: Date | null;
 }
 
 interface Project {
-  id: number;
+  id: string;
+  name: string;
+}
+
+interface Category {
+  id: string;
   name: string;
 }
 
@@ -32,19 +47,24 @@ interface TaskFormProps {
 }
 
 const TaskForm: React.FC<TaskFormProps> = ({ onTaskCreated }) => {
+  const { user } = useUser();
   const [formData, setFormData] = useState<FormData>({
     name: '',
-    description: '',
+    instructions: '',
     project_id: '',
-    urgency: '3',
-    priority: '3',
-    difficulty: '3',
+    category_id: '',
+    urgency: '2',
+    difficulty: '2',
+    priority: '2',
+    deadline: null,
   });
   const [projects, setProjects] = useState<Project[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
     fetchProjects();
+    fetchCategories();
   }, []);
 
   const fetchProjects = async () => {
@@ -56,25 +76,46 @@ const TaskForm: React.FC<TaskFormProps> = ({ onTaskCreated }) => {
     }
   };
 
+  const fetchCategories = async () => {
+    const { data, error } = await supabase.from('categories').select('id, name');
+    if (error) {
+      console.error('Error fetching categories:', error);
+    } else {
+      setCategories(data || []);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleDateChange = (date: Date | null) => {
+    setFormData(prev => ({ ...prev, deadline: date }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { name, description, project_id, urgency, priority, difficulty } = formData;
-    const points = (parseInt(urgency) + parseInt(priority) + parseInt(difficulty)) * 10;
+    const { name, instructions, project_id, category_id, urgency, difficulty, priority, deadline } = formData;
+    const points = (parseInt(urgency) + parseInt(difficulty) + parseInt(priority)) * 10;
+
+    if (!user) {
+      console.error('User not logged in');
+      return;
+    }
 
     const newTask: Task = {
       name,
-      description,
-      project_id: parseInt(project_id),
+      instructions,
       urgency: parseInt(urgency),
-      priority: parseInt(priority),
       difficulty: parseInt(difficulty),
+      priority: parseInt(priority),
       points,
-      status: 'pending',
+      project_id,
+      category_id,
+      status: 'Open',
+      created_by: user.id,
+      deadline: deadline ? deadline.toISOString() : undefined,
     };
 
     const { error } = await supabase.from('tasks').insert(newTask);
@@ -83,11 +124,13 @@ const TaskForm: React.FC<TaskFormProps> = ({ onTaskCreated }) => {
     } else {
       setFormData({
         name: '',
-        description: '',
+        instructions: '',
         project_id: '',
-        urgency: '3',
-        priority: '3',
-        difficulty: '3',
+        category_id: '',
+        urgency: '2',
+        difficulty: '2',
+        priority: '2',
+        deadline: null,
       });
       onTaskCreated();
     }
@@ -105,10 +148,10 @@ const TaskForm: React.FC<TaskFormProps> = ({ onTaskCreated }) => {
         required
       />
       <textarea
-        name="description"
-        value={formData.description}
+        name="instructions"
+        value={formData.instructions}
         onChange={handleChange}
-        placeholder="Task Description"
+        placeholder="Task Instructions"
         className="input-field w-full"
         required
       />
@@ -124,6 +167,18 @@ const TaskForm: React.FC<TaskFormProps> = ({ onTaskCreated }) => {
           <option key={project.id} value={project.id}>{project.name}</option>
         ))}
       </select>
+      <select
+        name="category_id"
+        value={formData.category_id}
+        onChange={handleChange}
+        className="input-field w-full"
+        required
+      >
+        <option value="">Select Category</option>
+        {categories.map(category => (
+          <option key={category.id} value={category.id}>{category.name}</option>
+        ))}
+      </select>
       <div className="flex space-x-4">
         <select
           name="urgency"
@@ -136,16 +191,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ onTaskCreated }) => {
           <option value="3">High Urgency</option>
         </select>
         <select
-          name="priority"
-          value={formData.priority}
-          onChange={handleChange}
-          className="input-field w-full"
-        >
-          <option value="1">Low Priority</option>
-          <option value="2">Medium Priority</option>
-          <option value="3">High Priority</option>
-        </select>
-        <select
           name="difficulty"
           value={formData.difficulty}
           onChange={handleChange}
@@ -155,7 +200,28 @@ const TaskForm: React.FC<TaskFormProps> = ({ onTaskCreated }) => {
           <option value="2">Medium Difficulty</option>
           <option value="3">High Difficulty</option>
         </select>
+        <select
+          name="priority"
+          value={formData.priority}
+          onChange={handleChange}
+          className="input-field w-full"
+        >
+          <option value="1">Low Priority</option>
+          <option value="2">Medium Priority</option>
+          <option value="3">High Priority</option>
+        </select>
       </div>
+      <DatePicker
+        selected={formData.deadline}
+        onChange={handleDateChange}
+        showTimeSelect
+        timeFormat="HH:mm"
+        timeIntervals={15}
+        timeCaption="time"
+        dateFormat="MMMM d, yyyy h:mm aa"
+        placeholderText="Select Deadline"
+        className="input-field w-full"
+      />
       <button type="submit" className="btn-primary w-full">
         Create Task
       </button>

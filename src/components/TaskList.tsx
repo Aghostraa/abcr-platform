@@ -1,85 +1,84 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { motion } from 'framer-motion';
 
 interface Task {
-  id: number;
+  id: string;
   name: string;
-  description: string;
+  instructions: string;
   status: string;
   points: number;
-  applicant_id: string | null;
+  assigned_user_id: string | null;
 }
-
 
 export interface TaskListProps {
   tasks: Task[];
+  loading: boolean;
+  onTaskUpdate: () => void;
 }
 
-
-const TaskList: React.FC<TaskListProps> = ({ tasks }) => {
+const TaskList: React.FC<TaskListProps> = ({ tasks, loading, onTaskUpdate }) => {
   const [userRole, setUserRole] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
+  const supabase = createClientComponentClient();
 
   useEffect(() => {
-    fetchTasks();
     fetchUserInfo();
   }, []);
-
-  const fetchTasks = async () => {
-    const { data, error } = await supabase.from('tasks').select('*');
-    if (error) console.error('Error fetching tasks:', error);
-  };
 
   const fetchUserInfo = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       setUserId(user.id);
-      const { data, error } = await supabase.rpc('user_role', { user_id: user.id });
+      const { data, error } = await supabase.rpc('get_user_role', { user_email: user.email });
       if (error) console.error('Error fetching user role:', error);
       else setUserRole(data);
     }
   };
 
-  const applyForTask = async (taskId: number) => {
+  const applyForTask = async (taskId: string) => {
     const { error } = await supabase
       .from('tasks')
-      .update({ applicant_id: userId, status: 'applied' })
+      .update({ assigned_user_id: userId, status: 'Awaiting Applicant Approval' })
       .eq('id', taskId);
     if (error) console.error('Error applying for task:', error);
-    else fetchTasks();
+    else onTaskUpdate();
   };
 
-  const approveApplication = async (taskId: number) => {
+  const approveApplication = async (taskId: string) => {
     const { error } = await supabase
       .from('tasks')
-      .update({ status: 'in_progress' })
+      .update({ status: 'In Progress' })
       .eq('id', taskId);
     if (error) console.error('Error approving application:', error);
-    else fetchTasks();
+    else onTaskUpdate();
   };
 
-  const markTaskAsDone = async (taskId: number) => {
+  const markTaskAsDone = async (taskId: string) => {
     const { error } = await supabase
       .from('tasks')
-      .update({ status: 'pending_approval', completed_at: new Date().toISOString() })
+      .update({ status: 'Awaiting Completion Approval' })
       .eq('id', taskId);
     if (error) console.error('Error marking task as done:', error);
-    else fetchTasks();
+    else onTaskUpdate();
   };
 
-  const approveTaskCompletion = async (taskId: number) => {
+  const approveTaskCompletion = async (taskId: string) => {
     const { error } = await supabase
       .from('tasks')
-      .update({ 
-        status: 'completed', 
-        approved_by: userId, 
-        approved_at: new Date().toISOString() 
-      })
+      .update({ status: 'Complete' })
       .eq('id', taskId);
     if (error) console.error('Error approving task completion:', error);
-    else fetchTasks();
+    else onTaskUpdate();
   };
+
+  if (loading) {
+    return <div>Loading tasks...</div>;
+  }
+
+  if (tasks.length === 0) {
+    return <div>No tasks available.</div>;
+  }
 
   return (
     <div className="space-y-4">
@@ -91,11 +90,11 @@ const TaskList: React.FC<TaskListProps> = ({ tasks }) => {
           transition={{ type: "spring", stiffness: 300 }}
         >
           <h3 className="text-xl font-semibold">{task.name}</h3>
-          <p>{task.description}</p>
+          <p>{task.instructions}</p>
           <p>Status: {task.status}</p>
           <p>Points: {task.points}</p>
           {(userRole === 'Member' || userRole === 'Manager' || userRole === 'Admin') && 
-           task.status === 'pending' && !task.applicant_id && (
+           task.status === 'Open' && !task.assigned_user_id && (
             <button 
               onClick={() => applyForTask(task.id)}
               className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -103,7 +102,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks }) => {
               Apply
             </button>
           )}
-          {(userRole === 'Manager' || userRole === 'Admin') && task.status === 'applied' && (
+          {(userRole === 'Manager' || userRole === 'Admin') && task.status === 'Awaiting Applicant Approval' && (
             <button 
               onClick={() => approveApplication(task.id)}
               className="mt-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
@@ -111,7 +110,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks }) => {
               Approve Application
             </button>
           )}
-          {task.applicant_id === userId && task.status === 'in_progress' && (
+          {task.assigned_user_id === userId && task.status === 'In Progress' && (
             <button 
               onClick={() => markTaskAsDone(task.id)}
               className="mt-2 px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
@@ -119,7 +118,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks }) => {
               Mark as Done
             </button>
           )}
-          {(userRole === 'Manager' || userRole === 'Admin') && task.status === 'pending_approval' && (
+          {(userRole === 'Manager' || userRole === 'Admin') && task.status === 'Awaiting Completion Approval' && (
             <button 
               onClick={() => approveTaskCompletion(task.id)}
               className="mt-2 px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"

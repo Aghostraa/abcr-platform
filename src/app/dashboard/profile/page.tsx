@@ -54,7 +54,6 @@ const ProfilePage: React.FC<{ userRole?: string }> = ({ userRole: initialUserRol
   };
 
   const fetchTasks = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: completedData, error: completedError } = await supabase
         .from('tasks')
@@ -76,6 +75,10 @@ const ProfilePage: React.FC<{ userRole?: string }> = ({ userRole: initialUserRol
       }
     }
   };
+
+  if (!user) {
+    return <DashboardLayout><div>Please log in to view your profile.</div></DashboardLayout>;
+  }
 
   return (
     <DashboardLayout>

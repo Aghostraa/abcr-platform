@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import DashboardLayout from '@/components/DashboardLayout';
 import TaskForm from '@/components/TaskForm';
@@ -10,89 +9,81 @@ import { motion } from 'framer-motion';
 import { useUser } from '@/contexts/UserContext';
 
 interface Task {
-  id: number;
+  id: string;
   name: string;
-  description: string;
-  project_id: number;
-  category_id: number;
+  instructions: string;
+  project_id: string;
+  category_id: string;
   urgency: number;
   priority: number;
   difficulty: number;
   points: number;
   status: string;
-  applicant_id: string | null;
+  assigned_user_id: string | null;
 }
 
 interface Project {
-  id: number;
+  id: string;
   name: string;
 }
 
 interface Category {
-  id: number;
+  id: string;
   name: string;
 }
 
-interface TasksPageProps {
-  userRole?: string;
-}
-
 const TasksPage: React.FC = () => {
-  const { user, loading: userLoading } = useUser();
+  const { user } = useUser();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedProject, setSelectedProject] = useState<number | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const router = useRouter();
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (userLoading) return;
-      if (user && ['Admin', 'Manager', 'Member'].includes(user.role)) {
-        await Promise.all([fetchTasks(), fetchProjects(), fetchCategories()]);
-      }
-    };
-  
-    fetchData();
-  }, [user, userLoading]);
+    if (user && ['Admin', 'Manager', 'Member'].includes(user.role)) {
+      fetchData();
+    }
+  }, [user]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([fetchTasks(), fetchProjects(), fetchCategories()]);
+    } catch (err) {
+      setError('Failed to fetch data');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchTasks = async () => {
-    setError(null);
-    try {
-      const { data, error } = await supabase.from('tasks').select('*');
-      if (error) throw error;
-      setTasks(data || []);
-    } catch (err) {
-      setError('Failed to fetch tasks');
-      console.error(err);
-    }
+    const { data, error } = await supabase.from('tasks').select('*');
+    if (error) throw error;
+    setTasks(data || []);
   };
 
   const fetchProjects = async () => {
-    try {
-      const { data, error } = await supabase.from('projects').select('*');
-      if (error) throw error;
-      setProjects(data || []);
-    } catch (err) {
-      console.error('Failed to fetch projects:', err);
-    }
+    const { data, error } = await supabase.from('projects').select('*');
+    if (error) throw error;
+    setProjects(data || []);
   };
 
   const fetchCategories = async () => {
-    try {
-      const { data, error } = await supabase.from('categories').select('*');
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (err) {
-      console.error('Failed to fetch categories:', err);
-    }
+    const { data, error } = await supabase.from('categories').select('*');
+    if (error) throw error;
+    setCategories(data || []);
   };
 
   const handleTaskCreated = () => {
+    fetchTasks();
+  };
+
+  const handleTaskUpdate = () => {
     fetchTasks();
   };
 
@@ -100,10 +91,6 @@ const TasksPage: React.FC = () => {
     (!selectedProject || task.project_id === selectedProject) &&
     (!selectedCategory || task.category_id === selectedCategory)
   );
-
-  if (userLoading) {
-    return <DashboardLayout><div>Loading user data...</div></DashboardLayout>;
-  }
 
   if (!user || !['Admin', 'Manager', 'Member'].includes(user.role)) {
     return null;
@@ -146,7 +133,7 @@ const TasksPage: React.FC = () => {
           <div className="mb-4 flex space-x-4">
             <select
               value={selectedProject || ''}
-              onChange={(e) => setSelectedProject(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => setSelectedProject(e.target.value || null)}
               className="bg-white bg-opacity-20 rounded p-2"
             >
               <option value="">All Projects</option>
@@ -156,7 +143,7 @@ const TasksPage: React.FC = () => {
             </select>
             <select
               value={selectedCategory || ''}
-              onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => setSelectedCategory(e.target.value || null)}
               className="bg-white bg-opacity-20 rounded p-2"
             >
               <option value="">All Categories</option>
@@ -166,13 +153,7 @@ const TasksPage: React.FC = () => {
             </select>
           </div>
 
-          {loading ? (
-            <p>Loading tasks...</p>
-          ) : error ? (
-            <p className="text-red-500">{error}</p>
-          ) : (
-            <TaskList tasks={filteredTasks} />
-          )}
+          <TaskList tasks={filteredTasks} loading={loading} onTaskUpdate={handleTaskUpdate} />
         </motion.div>
       </motion.div>
     </DashboardLayout>

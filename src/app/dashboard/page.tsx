@@ -7,23 +7,15 @@ import TaskList from '@/components/TaskList';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useUser } from '@/contexts/UserContext';
 
 interface Task {
-  id: number;
+  id: string;
   name: string;
-  description: string;
-  project_id: number;
-  category_id: number;
-  urgency: number;
-  priority: number;
-  difficulty: number;
-  points: number;
+  instructions: string;
   status: string;
-  applicant_id: string | null;
-}
-
-interface DashboardPageProps {
-  userRole?: string;
+  points: number;
+  assigned_user_id: string | null;
 }
 
 const data = [
@@ -35,30 +27,37 @@ const data = [
   { name: 'Jun', tasks: 8 },
 ];
 
-const DashboardPage: React.FC<DashboardPageProps> = ({ userRole }) => {
+const DashboardPage: React.FC = () => {
+  const { user } = useUser();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
-    const fetchTasks = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);  // Fetch only the 5 most recent tasks
+    if (user) {
+      fetchRecentTasks();
+    }
+  }, [user]);
 
-      if (error) {
-        console.error('Error fetching tasks:', error);
-      } else {
-        setTasks(data || []);
-      }
-      setLoading(false);
-    };
+  const fetchRecentTasks = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5);
 
-    fetchTasks();
-  }, [supabase]);
+    if (error) {
+      console.error('Error fetching tasks:', error);
+    } else {
+      setTasks(data || []);
+    }
+    setLoading(false);
+  };
+
+  const handleTaskUpdate = () => {
+    fetchRecentTasks();
+  };
 
   return (
     <DashboardLayout>
@@ -102,7 +101,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userRole }) => {
           </motion.div>
         </div>
 
-        {userRole && ['Admin', 'Manager', 'Member'].includes(userRole) && (
+        {user && ['Admin', 'Manager', 'Member'].includes(user.role) && (
           <motion.div
             className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl shadow-lg p-6"
             whileHover={{ scale: 1.02 }}
@@ -124,7 +123,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userRole }) => {
           </motion.div>
         )}
 
-        {userRole && ['Admin', 'Manager', 'Member'].includes(userRole) && (
+        {user && ['Admin', 'Manager', 'Member'].includes(user.role) && (
           <motion.div
             className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl shadow-lg p-6"
             whileHover={{ scale: 1.02 }}
@@ -133,15 +132,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userRole }) => {
             <h2 className="text-2xl font-semibold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400">
               Recent Tasks
             </h2>
-            {loading ? (
-              <p>Loading tasks...</p>
-            ) : (
-              <TaskList tasks={tasks} />
-            )}
+            <TaskList tasks={tasks} loading={loading} onTaskUpdate={handleTaskUpdate} />
           </motion.div>
         )}
 
-        {userRole === 'Visitor' && (
+        {user && user.role === 'Visitor' && (
           <motion.div
             className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl shadow-lg p-6"
             whileHover={{ scale: 1.02 }}
