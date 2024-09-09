@@ -27,7 +27,6 @@ const ProfilePage: React.FC<{ userRole?: string }> = ({ userRole: initialUserRol
 
   useEffect(() => {
     fetchUserData();
-    fetchTasks();
   }, []);
 
   const fetchUserData = async () => {
@@ -49,35 +48,27 @@ const ProfilePage: React.FC<{ userRole?: string }> = ({ userRole: initialUserRol
           role: role || initialUserRole || 'visitor',
           points: userData?.points || 0
         });
+        fetchTasks(user.id);
       }
     }
   };
 
-  const fetchTasks = async () => {
-    if (user) {
-      const { data: completedData, error: completedError } = await supabase
-        .from('tasks')
-        .select('id, name, points, status')
-        .eq('applicant_id', user.id)
-        .eq('status', 'completed');
+  const fetchTasks = async (userId: string) => {
+    const { data: tasks, error } = await supabase
+      .from('tasks')
+      .select('id, name, points, status')
+      .eq('assigned_user_id', userId);
 
-      const { data: inProgressData, error: inProgressError } = await supabase
-        .from('tasks')
-        .select('id, name, points, status')
-        .eq('applicant_id', user.id)
-        .in('status', ['in_progress', 'pending_approval']);
-
-      if (completedError || inProgressError) {
-        console.error('Error fetching tasks:', completedError || inProgressError);
-      } else {
-        setCompletedTasks(completedData || []);
-        setInProgressTasks(inProgressData || []);
-      }
+    if (error) {
+      console.error('Error fetching tasks:', error);
+    } else {
+      setCompletedTasks(tasks.filter(task => task.status === 'Complete') || []);
+      setInProgressTasks(tasks.filter(task => ['In Progress', 'Awaiting Completion Approval'].includes(task.status)) || []);
     }
   };
 
   if (!user) {
-    return <DashboardLayout><div>Please log in to view your profile.</div></DashboardLayout>;
+    return <DashboardLayout><div>Loading...</div></DashboardLayout>;
   }
 
   return (
@@ -90,21 +81,19 @@ const ProfilePage: React.FC<{ userRole?: string }> = ({ userRole: initialUserRol
         <h1 className="text-4xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
           User Profile
         </h1>
-        {user && (
-          <motion.div 
-            className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl shadow-lg p-6 mb-8"
-            whileHover={{ scale: 1.02 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          >
-            <p className="mb-2 text-xl"><span className="font-semibold">Email:</span> {user.email}</p>
-            <p className="mb-2 text-xl"><span className="font-semibold">Role:</span> {user.role}</p>
-            <p className="mb-2 text-2xl"><span className="font-semibold">Total Points:</span> 
-              <span className="ml-2 inline-block bg-gradient-to-r from-yellow-400 to-orange-500 text-transparent bg-clip-text">
-                {user.points}
-              </span>
-            </p>
-          </motion.div>
-        )}
+        <motion.div 
+          className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl shadow-lg p-6 mb-8"
+          whileHover={{ scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <p className="mb-2 text-xl"><span className="font-semibold">Email:</span> {user.email}</p>
+          <p className="mb-2 text-xl"><span className="font-semibold">Role:</span> {user.role}</p>
+          <p className="mb-2 text-2xl"><span className="font-semibold">Total Points:</span> 
+            <span className="ml-2 inline-block bg-gradient-to-r from-yellow-400 to-orange-500 text-transparent bg-clip-text">
+              {user.points}
+            </span>
+          </p>
+        </motion.div>
         <h2 className="text-3xl font-semibold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400">
           Completed Tasks
         </h2>

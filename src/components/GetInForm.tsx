@@ -1,26 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export default function GetInForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
   const supabase = createClientComponentClient()
 
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        router.push('/dashboard')
-      }
-    }
-    checkUser()
-  }, [supabase, router])
-
-  const handleGoogleLogin = async () => {
+  const handleGoogleSignIn = async () => {
     setLoading(true)
     setError(null)
     try {
@@ -32,8 +20,8 @@ export default function GetInForm() {
       })
       if (error) throw error
     } catch (error) {
-      console.error('Google login error:', error)
-      setError('An error occurred during Google login. Please try again.')
+      console.error('Google sign-in error:', error)
+      setError('An error occurred during Google sign-in. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -44,11 +32,11 @@ export default function GetInForm() {
       {error && <p className="text-red-400">{error}</p>}
       <button 
         type="button" 
-        onClick={handleGoogleLogin}
-        className="w-full px-4 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+        onClick={handleGoogleSignIn}
+        className="w-full px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
         disabled={loading}
       >
-        {loading ? 'Logging in...' : 'Log In with Google'}
+        {loading ? 'Signing in...' : 'Sign in with Google'}
       </button>
     </div>
   )

@@ -37,10 +37,12 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, loading, onTaskUpdate }) => 
   };
 
   const applyForTask = async (taskId: string) => {
+    console.log(taskId, userId, userRole);
     const { error } = await supabase
       .from('tasks')
       .update({ assigned_user_id: userId, status: 'Awaiting Applicant Approval' })
       .eq('id', taskId);
+      alert('Task applied for');
     if (error) console.error('Error applying for task:', error);
     else onTaskUpdate();
   };
@@ -68,8 +70,13 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, loading, onTaskUpdate }) => 
       .from('tasks')
       .update({ status: 'Complete' })
       .eq('id', taskId);
-    if (error) console.error('Error approving task completion:', error);
-    else onTaskUpdate();
+    if (error) {
+      console.error('Error approving task completion:', error);
+      alert('Failed to approve task completion. Please try again.');
+    } else {
+      alert('Task completion approved successfully!');
+      onTaskUpdate();
+    }
   };
 
   if (loading) {

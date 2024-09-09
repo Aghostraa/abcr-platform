@@ -11,16 +11,24 @@ export async function GET(request: Request) {
 
     const { data: role } = await supabase.rpc('get_user_role', { user_email: user.email });
     
-    const { data, error } = await supabase
+    const { data: userData, error: userError } = await supabase
+      .from('user_profiles')
+      .select('points, completed_tasks')
+      .eq('id', user.id)
+      .single();
+
+    if (userError) throw userError;
+
+    const { data: tasks, error: tasksError } = await supabase
       .from('tasks')
       .select('id, name, instructions, urgency, difficulty, priority, points, project_id, status, assigned_user_id, created_by, created_at, deadline');
 
-    if (error) throw error;
+    if (tasksError) throw tasksError;
 
-    return NextResponse.json({ tasks: data, userRole: role });
+    return NextResponse.json({ tasks, userRole: role, userPoints: userData.points, completedTasks: userData.completed_tasks });
   } catch (error) {
-    console.error('Error fetching tasks:', error);
-    return NextResponse.json({ error: 'An error occurred while fetching tasks' }, { status: 500 });
+    console.error('Error fetching data:', error);
+    return NextResponse.json({ error: 'An error occurred while fetching data' }, { status: 500 });
   }
 }
 
