@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { motion } from 'framer-motion';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useUser } from '@/contexts/UserContext';
 
 interface User {
   id: string;
@@ -19,41 +20,14 @@ interface Task {
   status: string;
 }
 
-const ProfilePage: React.FC<{ userRole?: string }> = ({ userRole: initialUserRole }) => {
+const ProfilePage: React.FC = () => {
+  const { user: contextUser } = useUser();
   const [user, setUser] = useState<User | null>(null);
   const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
   const [inProgressTasks, setInProgressTasks] = useState<Task[]>([]);
   const supabase = createClientComponentClient()
 
-  useEffect(() => {
-    fetchUserData();
-  }, []);
-
-  const fetchUserData = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: role } = await supabase.rpc('get_user_role', { user_email: user.email });
-      const { data: userData, error } = await supabase
-        .from('user_profiles')
-        .select('points')
-        .eq('id', user.id)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching user data:', error);
-      } else {
-        setUser({ 
-          id: user.id, 
-          email: user.email || '', 
-          role: role || initialUserRole || 'visitor',
-          points: userData?.points || 0
-        });
-        fetchTasks(user.id);
-      }
-    }
-  };
-
-  const fetchTasks = async (userId: string) => {
+  const fetchTasks = useCallback(async (userId: string) => {
     const { data: tasks, error } = await supabase
       .from('tasks')
       .select('id, name, points, status')
@@ -65,10 +39,43 @@ const ProfilePage: React.FC<{ userRole?: string }> = ({ userRole: initialUserRol
       setCompletedTasks(tasks.filter(task => task.status === 'Complete') || []);
       setInProgressTasks(tasks.filter(task => ['In Progress', 'Awaiting Completion Approval'].includes(task.status)) || []);
     }
-  };
+  }, [supabase]);
+
+  const fetchUserData = useCallback(async () => {
+    if (contextUser) {
+      const { data: role } = await supabase.rpc('get_user_role', { user_email: contextUser.email });
+      const { data: userData, error } = await supabase
+        .from('user_profiles')
+        .select('points')
+        .eq('id', contextUser.id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user data:', error);
+      } else {
+        setUser({ 
+          id: contextUser.id, 
+          email: contextUser.email || '', 
+          role: role || 'visitor',
+          points: userData?.points || 0
+        });
+        fetchTasks(contextUser.id);
+      }
+    }
+  }, [contextUser, supabase, fetchTasks]);
+
+  useEffect(() => {
+    if (contextUser) {
+      fetchUserData();
+    }
+  }, [contextUser, fetchUserData]);
+
+  if (!contextUser) {
+    return <DashboardLayout><div>Loading user data...</div></DashboardLayout>;
+  }
 
   if (!user) {
-    return <DashboardLayout><div>Loading...</div></DashboardLayout>;
+    return <DashboardLayout><div>Loading profile...</div></DashboardLayout>;
   }
 
   return (
